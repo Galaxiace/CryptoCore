@@ -5,9 +5,10 @@ import os
 # Добавляем src в путь для импорта
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from src.crypto.core import encrypt_file_aes, decrypt_file_aes  # Изменено!
-from src.utils.validation import validate_hex_key  # Изменено!
-from src.utils.logging_setup import setup_logger  # Изменено!
+from src.crypto.core import encrypt_file_aes, decrypt_file_aes
+from src.utils.validation import validate_hex_key, is_weak_key
+from src.utils.logging_setup import setup_logger
+from src.utils.csprng import generate_random_bytes
 
 
 def create_parser():
@@ -20,8 +21,9 @@ def create_parser():
     parser.add_argument('-mode', required=True,
                         choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr'],
                         help='Mode of operation')
-    parser.add_argument('-key', required=True,
-                        help='Encryption key as 32-character hexadecimal string')
+    # Сделать --key опциональным
+    parser.add_argument('-key',
+                        help='Encryption key as 32-character hexadecimal string (optional for encryption)')
     parser.add_argument('-input', required=True,
                         help='Input file path')
     parser.add_argument('-output',
@@ -39,7 +41,21 @@ def create_parser():
 
 def validate_args(args):
     """Validate CLI arguments"""
-    validate_hex_key(args.key)
+    if args.algorithm == 'aes':
+        # Для дешифрования ключ обязателен
+        if args.decrypt and not args.key:
+            raise ValueError("Key is required for decryption")
+
+        # Для шифрования ключ может быть опциональным
+        if args.key:
+            validate_hex_key(args.key)
+            # Проверка на слабый ключ (предупреждение)
+            if is_weak_key(args.key):
+                print(f"Warning: The provided key may be weak")
+
+        # Validate IV if provided
+        if args.iv:
+            validate_hex_key(args.iv, 32, "IV")
 
     # Set default output filename if not provided
     if not args.output:
@@ -62,13 +78,21 @@ def main():
         args = parser.parse_args()
         args = validate_args(args)
 
-        key = validate_hex_key(args.key)
+        # НОВАЯ ЛОГИКА: Генерация ключа если не предоставлен
+        if args.encrypt and not args.key:
+            # Генерируем случайный ключ
+            key_bytes = generate_random_bytes(16)
+            key_hex = key_bytes.hex()
+            print(f"[INFO] Generated random key: {key_hex}")
+        else:
+            # Используем предоставленный ключ
+            key_bytes = validate_hex_key(args.key)
 
         if args.encrypt:
-            encrypt_file_aes(args.input, args.output, key, args.mode)
+            encrypt_file_aes(args.input, args.output, key_bytes, args.mode)
             print(f"Encryption successful. Output: {args.output}")
         else:
-            decrypt_file_aes(args.input, args.output, key, args.mode, args.iv)
+            decrypt_file_aes(args.input, args.output, key_bytes, args.mode, args.iv)
             print(f"Decryption successful. Output: {args.output}")
 
     except Exception as e:

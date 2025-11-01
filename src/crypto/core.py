@@ -2,7 +2,7 @@ from .aes_ecb import AES_ECB_MODE
 from .modes import CBC_MODE, CFB_MODE, OFB_MODE, CTR_MODE
 from src.file_io import read_file, write_file
 from src.utils.validation import validate_file_exists
-import os
+from src.utils.csprng import generate_random_bytes
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,9 +32,9 @@ def encrypt_file_aes(input_path: str, output_path: str, key: bytes, mode: str = 
         plaintext = read_file(input_path)
         crypto = get_crypto_mode(mode, key)
 
-        # Generate IV for modes that require it
+        # Generate IV for modes that require it - ИСПОЛЬЗУЕМ CSPRNG
         if mode != 'ecb':
-            iv = os.urandom(16)  # CSPRNG
+            iv = generate_random_bytes(16)  # ИСПОЛЬЗУЕМ НОВЫЙ CSPRNG
             ciphertext = crypto.encrypt(plaintext, iv)
             # Prepend IV to ciphertext
             final_output = iv + ciphertext

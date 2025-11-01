@@ -1,5 +1,5 @@
 import argparse
-from src.utils.validation import validate_hex_key
+from src.utils.validation import validate_hex_key, is_weak_key
 
 
 def create_parser():
@@ -10,8 +10,9 @@ def create_parser():
     parser.add_argument('-mode', required=True,
                         choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr'],
                         help='Mode of operation')
-    parser.add_argument('-key', required=True,
-                        help='Encryption key as 32-character hexadecimal string')
+    # Сделать --key опциональным
+    parser.add_argument('-key',
+                        help='Encryption key as 32-character hexadecimal string (optional for encryption)')
     parser.add_argument('-input', required=True,
                         help='Input file path')
     parser.add_argument('-output',
@@ -30,11 +31,20 @@ def create_parser():
 def validate_args(args):
     """Validate CLI arguments"""
     if args.algorithm == 'aes':
-        validate_hex_key(args.key)
+        # Для дешифрования ключ обязателен
+        if args.decrypt and not args.key:
+            raise ValueError("Key is required for decryption")
+
+        # Для шифрования ключ может быть опциональным
+        if args.key:
+            validate_hex_key(args.key)
+            # Проверка на слабый ключ (предупреждение)
+            if is_weak_key(args.key):
+                print(f"Warning: The provided key may be weak")
 
         # Validate IV if provided
         if args.iv:
-            validate_hex_key(args.iv, 32, "IV")  # 32 hex chars = 16 bytes
+            validate_hex_key(args.iv, 32, "IV")
 
         # Validate mode-specific requirements
         if args.mode != 'ecb' and args.decrypt and not args.iv:

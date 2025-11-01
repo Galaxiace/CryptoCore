@@ -282,6 +282,46 @@ test_key_mismatch_improved "ofb" "OFB Mode"
 test_key_mismatch_improved "ctr" "CTR Mode"
 ```
 
+## Генерация ключа при шифровании
+```bash
+
+python cryptocore.py -algorithm aes -mode cbc -encrypt -input test.txt -output test.enc
+```
+
+## NIST-тесты
+
+### Генерация файла 10 МБ от CSPRNG
+
+```bash
+
+python3 -c "from tests.test_csprng import generate_nist_test_file; generate_nist_test_file()"
+```
+
+### Запуск NIST 1,000,000 бит на каждый (10шт) битовый поток
+
+```bash
+
+cd nist-sts/sts && (echo -e "0\ndata/nist_test_data.bin\n1\n0\n10\n1" | ./assess 1000000; sleep 2) && echo "=== NIST RESULTS ===" && cat experiments/AlgorithmTesting/finalAnalysisReport.txt
+```
+
+### Ввод параметров в интерактивном режиме NIST
+
+```
+0 → data/nist_test_data.bin → 1 → 0 → 10 → 1
+
+0 - Выбор "Input File" (тестировать данные из файла)
+
+data/nist_test_data.bin - Путь к тестовому файлу
+
+1 - Запустить ВСЕ 15 статистических тестов
+
+0 - Продолжить без изменения параметров тестов
+
+10 - 10 битовых потоков (каждый по 1,000,000 бит)
+
+1 - Бинарный формат данных (данные в бинарном виде)
+```
+
 # Возможности
 ### 1) Шифрование AES-128 в различных режимах:
 
@@ -349,6 +389,7 @@ CTR (Counter)
 # Структура проекта
 ```
 cryptocore/
+    ├── nist-sts/            # NIST-тесты
     ├── src/                 # Исходный код
     │   ├── crypto/          # ЯДРО КРИПТОГРАФИИ
     │   │   ├── __init__.py
@@ -357,12 +398,13 @@ cryptocore/
     │   │   └── modes/       # Другие режимы
     │   │       ├── __init__.py
     │   │       ├── base_mode.py
-    │   │       ├── cbc.py
-    │   │       ├── cfb.py
-    │   │       ├── ofb.py
-    │   │       └── ctr.py
+    │   │       ├── cbc.py   # cbc режим
+    │   │       ├── cfb.py   # cfb режим
+    │   │       ├── ofb.py   # ofb режим
+    │   │       └── ctr.py   # ctr режим
     │   ├── utils/           # Вспомогательные утилиты
     │   │   ├── __init__.py
+    │   │   ├── csprng.py        # Криптостойкий RNG
     │   │   ├── validation.py    # Валидация ключей и файлов
     │   │   └── logging_setup.py # Настройка логирования
     │   │   
@@ -374,6 +416,7 @@ cryptocore/
     │   ├── conftest.py      # Фикстуры pytest
     │   ├── test_aes_ecb.py  # Тесты AES-ECB
     │   ├── test_cli.py      # Тесты CLI
+    │   ├── test_csprng.py   # есты RNG и статистических свойств
     │   └── test_integration.py # Интеграционные тесты
     ├── cryptocore.py        # ГЛАВНЫЙ CLI ИНТЕРФЕЙС
     ├── setup.py             # Конфигурация пакета
