@@ -1,8 +1,58 @@
 import argparse
+import sys
 from src.utils.validation import validate_hex_key, is_weak_key
 
 
 def create_parser():
+    parser = argparse.ArgumentParser(description='CryptoCore - Encryption/Decryption and Hashing Tool')
+
+    # Сначала пробуем старый формат (backward compatibility)
+    try:
+        # Проверяем аргументы для старого формата
+        if any(arg in ['-encrypt', '-decrypt'] for arg in sys.argv):
+            return create_legacy_parser()
+    except:
+        pass
+
+    # Новый формат с подкомандами
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+
+    # Encrypt/Decrypt command
+    crypto_parser = subparsers.add_parser('crypto', help='Encryption/decryption operations')
+    crypto_parser.add_argument('-algorithm', required=True, choices=['aes'],
+                               help='Cipher algorithm')
+    crypto_parser.add_argument('-mode', required=True,
+                               choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr'],
+                               help='Mode of operation')
+    crypto_parser.add_argument('-key',
+                               help='Encryption key as 32-character hexadecimal string (optional for encryption)')
+    crypto_parser.add_argument('-input', required=True,
+                               help='Input file path')
+    crypto_parser.add_argument('-output',
+                               help='Output file path (optional)')
+    crypto_parser.add_argument('-iv',
+                               help='Initialization Vector as 32-character hexadecimal string (for decryption)')
+
+    # Mutually exclusive group for encrypt/decrypt
+    group = crypto_parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('-encrypt', action='store_true', help='Encrypt operation')
+    group.add_argument('-decrypt', action='store_true', help='Decrypt operation')
+
+    # Hash command (NEW)
+    hash_parser = subparsers.add_parser('dgst', help='Compute message digests (hash)')
+    hash_parser.add_argument('-algorithm', required=True,
+                             choices=['sha256', 'sha3-256', 'blake2'],
+                             help='Hash algorithm')
+    hash_parser.add_argument('-input', required=True,
+                             help='Input file path to be hashed')
+    hash_parser.add_argument('-output',
+                             help='Output file to write hash (optional)')
+
+    return parser
+
+
+def create_legacy_parser():
+    """Создает парсер для старого формата команд (backward compatibility)"""
     parser = argparse.ArgumentParser(description='AES Encryption/Decryption Tool')
 
     parser.add_argument('-algorithm', required=True, choices=['aes'],
@@ -10,7 +60,6 @@ def create_parser():
     parser.add_argument('-mode', required=True,
                         choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr'],
                         help='Mode of operation')
-    # Сделать --key опциональным
     parser.add_argument('-key',
                         help='Encryption key as 32-character hexadecimal string (optional for encryption)')
     parser.add_argument('-input', required=True,
@@ -30,36 +79,46 @@ def create_parser():
 
 def validate_args(args):
     """Validate CLI arguments"""
-    if args.algorithm == 'aes':
-        # Для дешифрования ключ обязателен
-        if args.decrypt and not args.key:
-            raise ValueError("Key is required for decryption")
+    # Определяем тип команды по наличию атрибута 'command'
+    if not hasattr(args, 'command') or args.command == 'crypto':
+        # Legacy format or crypto command
+        if args.algorithm == 'aes':
+            # Для дешифрования ключ обязателен
+            if args.decrypt and not args.key:
+                raise ValueError("Key is required for decryption")
 
-        # Для шифрования ключ может быть опциональным
-        if args.key:
-            validate_hex_key(args.key)
-            # Проверка на слабый ключ (предупреждение)
-            if is_weak_key(args.key):
-                print(f"Warning: The provided key may be weak")
+            # Для шифрования ключ может быть опциональным
+            if args.key:
+                validate_hex_key(args.key)
+                # Проверка на слабый ключ (предупреждение)
+                if is_weak_key(args.key):
+                    print(f"Warning: The provided key may be weak")
 
-        # Validate IV if provided
-        if args.iv:
-            validate_hex_key(args.iv, 32, "IV")
+            # Validate IV if provided
+            if args.iv:
+                validate_hex_key(args.iv, 32, "IV")
 
-        # Validate mode-specific requirements
-        if args.mode != 'ecb' and args.decrypt and not args.iv:
-            # For non-ECB decryption without --iv, we'll read IV from file
-            # This is allowed, so no validation error here
-            pass
+            # Validate mode-specific requirements
+            if args.mode != 'ecb' and args.decrypt and not args.iv:
+                # For non-ECB decryption without --iv, we'll read IV from file
+                # This is allowed, so no validation error here
+                pass
 
-    # Set default output filename if not provided
-    if not args.output:
-        if args.encrypt:
-            args.output = args.input + '.enc'
-        else:
-            if args.input.endswith('.enc'):
-                args.output = args.input[:-4]
+        # Set default output filename if not provided
+        if not args.output:
+            if args.encrypt:
+                args.output = args.input + '.enc'
             else:
-                args.output = args.input + '.dec'
+                if args.input.endswith('.enc'):
+                    args.output = args.input[:-4]
+                else:
+                    args.output = args.input + '.dec'
+
+    elif args.command == 'dgst':
+        # Hash command validation
+        if not args.input:
+            raise ValueError("Input file is required for hash computation")
+
+        # Input file existence will be checked during execution
 
     return args

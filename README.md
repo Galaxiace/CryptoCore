@@ -1,6 +1,6 @@
 # CryptoCore
 
-## Командная утилита для шифрования и дешифрования файлов с использованием алгоритма AES в режиме ECB.
+## Командная утилита для шифрования и дешифрования файлов с использованием алгоритма AES в различных режимах.
 
 # Установка
 
@@ -322,6 +322,91 @@ data/nist_test_data.bin - Путь к тестовому файлу
 1 - Бинарный формат данных (данные в бинарном виде)
 ```
 
+## Тесты хеширования sha256
+
+### Базовое хеширование файла
+
+```bash
+
+rm -f test_file.txt
+echo "Hello, World! This is a test file for CryptoCore." > test_file.txt
+python cryptocore.py dgst -algorithm sha256 -input test_file.txt
+```
+
+### Вывод хеша в файл
+
+```bash
+
+rm -f test_file.txt
+echo "Hello, World! This is a test file for CryptoCore." > test_file.txt
+python cryptocore.py dgst -algorithm sha256 -input test_file.txt -output test_hash.sha256
+cat test_hash.sha256
+```
+
+### Пустой файл
+
+```bash
+
+rm -f empty.txt
+echo -n "" > empty.txt
+python cryptocore.py dgst -algorithm sha256 -input empty.txt
+```
+
+### Совместимость с системными утилитами
+
+```bash
+
+# Реализация
+python cryptocore.py dgst -algorithm sha256 -input test_file.txt > our_hash.txt
+
+# Системная утилита
+sha256sum test_file.txt > system_hash.txt
+
+# Сравнение
+echo "===Our hash===" && cat our_hash.txt && echo "===System hash===" && cat system_hash.txt && echo "===Difference===" && diff our_hash.txt system_hash.txt
+```
+
+## Тесты хеширования sha3_256
+
+### Базовое хеширование файла
+
+```bash
+
+rm -f test_file.txt
+echo "Hello, World! This is a test file for CryptoCore." > test_file.txt
+python cryptocore.py dgst -algorithm sha3-256 -input test_file.txt
+```
+
+### Вывод хеша в файл
+
+```bash
+
+rm -f test_file.txt
+echo "Hello, World! This is a test file for CryptoCore." > test_file.txt
+python cryptocore.py dgst -algorithm sha3-256 -input test_file.txt -output test_hash.sha3
+cat test_hash.sha3
+```
+
+### Пустой файл
+
+```bash
+
+rm -f empty.txt
+echo -n "" > empty.txt
+python cryptocore.py dgst -algorithm sha3-256 -input empty.txt
+```
+
+### Сравнение с системными утилитами
+
+```bash
+
+rm -f diff_test.txt our_sha3.txt python_sha3.txt
+echo "Test data for diff comparison" > diff_test.txt
+python cryptocore.py dgst -algorithm sha3-256 -input diff_test.txt > our_sha3.txt
+python3 -c "import hashlib; data = open('diff_test.txt', 'rb').read(); print(hashlib.sha3_256(data).hexdigest() + '  diff_test.txt')" > python_sha3.txt
+echo "Our implementation:" && cat our_sha3.txt && echo "Python hashlib:" && cat python_sha3.txt && echo "===Difference===" && diff our_sha3.txt python_sha3.txt
+```
+
 # Возможности
 ### 1) Шифрование AES-128 в различных режимах:
 
@@ -402,6 +487,11 @@ cryptocore/
     │   │       ├── cfb.py   # cfb режим
     │   │       ├── ofb.py   # ofb режим
     │   │       └── ctr.py   # ctr режим
+    │   │
+    │   ├── hash/
+    │   │   ├── __init__.py
+    │   │   └── sha256.py
+    │   │
     │   ├── utils/           # Вспомогательные утилиты
     │   │   ├── __init__.py
     │   │   ├── csprng.py        # Криптостойкий RNG
@@ -411,12 +501,14 @@ cryptocore/
     │   ├── file_io.py       # Чтение/запись файлов
     │   ├── cli_parser.py    # Парсер аргументов CLI
     │   └── __init__.py
+    │
     ├── tests/               # Тесты
     │   ├── __init__.py
     │   ├── conftest.py      # Фикстуры pytest
     │   ├── test_aes_ecb.py  # Тесты AES-ECB
     │   ├── test_cli.py      # Тесты CLI
-    │   ├── test_csprng.py   # есты RNG и статистических свойств
+    │   ├── test_csprng.py   # Тесты RNG и статистических свойств
+    │   ├── test_hash.py
     │   └── test_integration.py # Интеграционные тесты
     ├── cryptocore.py        # ГЛАВНЫЙ CLI ИНТЕРФЕЙС
     ├── setup.py             # Конфигурация пакета

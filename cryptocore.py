@@ -9,91 +9,103 @@ from src.crypto.core import encrypt_file_aes, decrypt_file_aes
 from src.utils.validation import validate_hex_key, is_weak_key
 from src.utils.logging_setup import setup_logger
 from src.utils.csprng import generate_random_bytes
+from src.hash.sha256 import SHA256
+from src.hash.sha3_256 import SHA3_256
+from src.file_io import read_file_chunks, write_file, file_exists
 
 
-def create_parser():
-    """Create CLI argument parser"""
-    import argparse
-    parser = argparse.ArgumentParser(description='AES Encryption/Decryption Tool')
+def compute_file_hash(file_path, algorithm):
+    """Compute hash of a file using specified algorithm"""
+    if algorithm == 'sha256':
+        hasher = SHA256()
 
-    parser.add_argument('-algorithm', required=True, choices=['aes'],
-                        help='Cipher algorithm')
-    parser.add_argument('-mode', required=True,
-                        choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr'],
-                        help='Mode of operation')
-    # Сделать --key опциональным
-    parser.add_argument('-key',
-                        help='Encryption key as 32-character hexadecimal string (optional for encryption)')
-    parser.add_argument('-input', required=True,
-                        help='Input file path')
-    parser.add_argument('-output',
-                        help='Output file path (optional)')
-    parser.add_argument('-iv',
-                        help='Initialization Vector as 32-character hexadecimal string (for decryption)')
+        # Process file in chunks to handle large files
+        for chunk in read_file_chunks(file_path):
+            hasher.update(chunk)
 
-    # Mutually exclusive group for encrypt/decrypt
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-encrypt', action='store_true', help='Encrypt operation')
-    group.add_argument('-decrypt', action='store_true', help='Decrypt operation')
+        return hasher.hexdigest()
 
-    return parser
+    elif algorithm == 'sha3-256':
+        hasher = SHA3_256()
+
+        # Process file in chunks to handle large files
+        for chunk in read_file_chunks(file_path):
+            hasher.update(chunk)
+
+        return hasher.hexdigest()
+
+    else:
+        raise ValueError(f"Unsupported hash algorithm: {algorithm}")
 
 
-def validate_args(args):
-    """Validate CLI arguments"""
-    if args.algorithm == 'aes':
-        # Для дешифрования ключ обязателен
-        if args.decrypt and not args.key:
-            raise ValueError("Key is required for decryption")
+def handle_hash_command(args):
+    """Handle the dgst subcommand"""
+    # Check if input file exists
+    if not file_exists(args.input):
+        raise FileNotFoundError(f"Input file not found: {args.input}")
 
-        # Для шифрования ключ может быть опциональным
-        if args.key:
-            validate_hex_key(args.key)
-            # Проверка на слабый ключ (предупреждение)
-            if is_weak_key(args.key):
-                print(f"Warning: The provided key may be weak")
+    # Compute hash
+    hash_value = compute_file_hash(args.input, args.algorithm)
 
-        # Validate IV if provided
-        if args.iv:
-            validate_hex_key(args.iv, 32, "IV")
+    # Format output (standard *sum format) - 2 SPACES for compatibility
+    output_line = f"{hash_value}  {args.input}\n"
 
-    # Set default output filename if not provided
-    if not args.output:
-        if args.encrypt:
-            args.output = args.input + '.enc'
-        else:
-            if args.input.endswith('.enc'):
-                args.output = args.input[:-4]
-            else:
-                args.output = args.input + '.dec'
+    # Output to file or stdout
+    if args.output:
+        write_file(args.output, output_line.encode('utf-8'))
+        print(f"Hash written to: {args.output}")
+    else:
+        # Print without extra newline since output_line already has it
+        print(output_line, end='')
 
-    return args
+    return hash_value
+
+
+def handle_legacy_crypto(args):
+    """Handle legacy crypto commands (without 'crypto' subcommand)"""
+    if args.encrypt and not args.key:
+        # Генерируем случайный ключ
+        key_bytes = generate_random_bytes(16)
+        key_hex = key_bytes.hex()
+        print(f"[INFO] Generated random key: {key_hex}")
+    else:
+        # Используем предоставленный ключ
+        key_bytes = validate_hex_key(args.key)
+
+    if args.encrypt:
+        encrypt_file_aes(args.input, args.output, key_bytes, args.mode)
+        print(f"Encryption successful. Output: {args.output}")
+    else:
+        decrypt_file_aes(args.input, args.output, key_bytes, args.mode, args.iv)
+        print(f"Decryption successful. Output: {args.output}")
 
 
 def main():
     logger = setup_logger()
 
     try:
+        from src.cli_parser import create_parser, validate_args
         parser = create_parser()
         args = parser.parse_args()
         args = validate_args(args)
 
-        # НОВАЯ ЛОГИКА: Генерация ключа если не предоставлен
-        if args.encrypt and not args.key:
-            # Генерируем случайный ключ
-            key_bytes = generate_random_bytes(16)
-            key_hex = key_bytes.hex()
-            print(f"[INFO] Generated random key: {key_hex}")
+        # Определяем тип команды
+        if not hasattr(args, 'command'):
+            # Legacy format - прямой вызов crypto операций
+            handle_legacy_crypto(args)
+        elif args.command == 'crypto':
+            # New format crypto command
+            handle_legacy_crypto(args)  # Та же логика
+        elif args.command == 'dgst':
+            # New hash command
+            handle_hash_command(args)
         else:
-            # Используем предоставленный ключ
-            key_bytes = validate_hex_key(args.key)
-
-        if args.encrypt:
-            encrypt_file_aes(args.input, args.output, key_bytes, args.mode)
-            print(f"Encryption successful. Output: {args.output}")
-        else:
-            decrypt_file_aes(args.input, args.output, key_bytes, args.mode, args.iv)
-            print(f"Decryption successful. Output: {args.output}")
+            print("Error: No command specified. Use 'crypto' for encryption/decryption or 'dgst' for hashing.")
+            print("Examples:")
+            print("  cryptocore crypto -algorithm aes -mode cbc -encrypt -input file.txt")
+            print("  cryptocore dgst -algorithm sha256 -input file.txt")
+            print("  cryptocore -algorithm aes -mode cbc -encrypt -input file.txt (legacy)")
+            sys.exit(1)
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

@@ -1,12 +1,27 @@
+import os
+
+
 def read_file(file_path):
     """Read binary data from file"""
     with open(file_path, 'rb') as f:
         return f.read()
 
+
 def write_file(file_path, data):
     """Write binary data to file"""
     with open(file_path, 'wb') as f:
         f.write(data)
+
+
+def read_file_chunks(file_path, chunk_size=8192):
+    """Read file in chunks (generator) - NEW for hashing large files"""
+    with open(file_path, 'rb') as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            yield chunk
+
 
 def create_test_file(filename="plaintext.txt"):
     """Create a test file if it doesn't exist"""
@@ -17,3 +32,13 @@ def create_test_file(filename="plaintext.txt"):
             f.write("This is a test message for AES-ECB encryption verification\n")
         return filename
     return None
+
+
+def file_exists(file_path):
+    """Check if file exists"""
+    return os.path.exists(file_path)
+
+
+def get_file_size(file_path):
+    """Get file size in bytes"""
+    return os.path.getsize(file_path)
