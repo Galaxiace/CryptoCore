@@ -1,3 +1,4 @@
+# src/cli_parser.py
 import argparse
 import sys
 from src.utils.validation import validate_hex_key, is_weak_key
@@ -38,8 +39,8 @@ def create_parser():
     group.add_argument('-encrypt', action='store_true', help='Encrypt operation')
     group.add_argument('-decrypt', action='store_true', help='Decrypt operation')
 
-    # Hash command (NEW)
-    hash_parser = subparsers.add_parser('dgst', help='Compute message digests (hash)')
+    # Hash command (extended for HMAC)
+    hash_parser = subparsers.add_parser('dgst', help='Compute message digests (hash) and HMAC')
     hash_parser.add_argument('-algorithm', required=True,
                              choices=['sha256', 'sha3-256', 'blake2'],
                              help='Hash algorithm')
@@ -47,6 +48,17 @@ def create_parser():
                              help='Input file path to be hashed')
     hash_parser.add_argument('-output',
                              help='Output file to write hash (optional)')
+
+    # HMAC-specific options
+    hmac_group = hash_parser.add_argument_group('HMAC options')
+    hmac_group.add_argument('--hmac', action='store_true',
+                            help='Enable HMAC mode')
+    hmac_group.add_argument('--key',
+                            help='Key for HMAC as hexadecimal string (required when --hmac is used)')
+    hmac_group.add_argument('--verify',
+                            help='Verify HMAC against value in specified file')
+    hmac_group.add_argument('--cmac', action='store_true',
+                            help='Use AES-CMAC instead of HMAC')
 
     return parser
 
@@ -119,6 +131,29 @@ def validate_args(args):
         if not args.input:
             raise ValueError("Input file is required for hash computation")
 
-        # Input file existence will be checked during execution
+        # HMAC-specific validation
+        if args.hmac:
+            if not args.key:
+                raise ValueError("Key is required when --hmac is used")
+            # Validate key format
+            try:
+                # Accept any length for HMAC key
+                key_bytes = bytes.fromhex(args.key)
+                if len(key_bytes) == 0:
+                    raise ValueError("Key cannot be empty")
+            except ValueError as e:
+                raise ValueError(f"Invalid key format: {e}")
+
+            # CMAC validation (bonus)
+            if args.cmac:
+                if args.algorithm != 'sha256':
+                    print("Warning: CMAC uses AES, not hash algorithm")
+                # CMAC requires specific key lengths
+                if len(key_bytes) not in [16, 24, 32]:
+                    raise ValueError("CMAC key must be 16, 24, or 32 bytes (32, 48, or 64 hex chars)")
+
+        # Check for conflicting options
+        if args.verify and args.output:
+            print("Warning: --verify and --output both specified, --verify takes precedence")
 
     return args

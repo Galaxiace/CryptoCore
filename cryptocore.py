@@ -44,6 +44,16 @@ def handle_hash_command(args):
     if not file_exists(args.input):
         raise FileNotFoundError(f"Input file not found: {args.input}")
 
+    # HMAC mode
+    if args.hmac:
+        return handle_hmac_command(args)
+
+    # Regular hash mode
+    return handle_regular_hash_command(args)
+
+
+def handle_regular_hash_command(args):
+    """Handle regular hash computation (non-HMAC)"""
     # Compute hash
     hash_value = compute_file_hash(args.input, args.algorithm)
 
@@ -59,6 +69,84 @@ def handle_hash_command(args):
         print(output_line, end='')
 
     return hash_value
+
+
+def handle_hmac_command(args):
+    """Handle HMAC computation and verification"""
+    from src.mac.hmac import HMAC
+
+    # Initialize HMAC with key
+    try:
+        hmac = HMAC(args.key)
+    except Exception as e:
+        raise ValueError(f"Failed to initialize HMAC: {e}")
+
+    # Verification mode
+    if args.verify:
+        return handle_hmac_verification(args, hmac)
+
+    # Generation mode
+    return handle_hmac_generation(args, hmac)
+
+
+def handle_hmac_generation(args, hmac):
+    """Generate HMAC for file"""
+    # Compute HMAC
+    hmac_value = hmac.compute_file(args.input)
+
+    # Format output: HMAC_VALUE INPUT_FILE_PATH
+    output_line = f"{hmac_value} {args.input}\n"
+
+    # Output to file or stdout
+    if args.output:
+        write_file(args.output, output_line.encode('utf-8'))
+        print(f"HMAC written to: {args.output}")
+    else:
+        print(output_line, end='')
+
+    return hmac_value
+
+
+def handle_hmac_verification(args, hmac):
+    """Verify HMAC against expected value"""
+    # Read expected HMAC from file
+    if not file_exists(args.verify):
+        raise FileNotFoundError(f"HMAC verification file not found: {args.verify}")
+
+    with open(args.verify, 'r') as f:
+        expected_line = f.read().strip()
+
+    # Parse expected HMAC (flexible parsing)
+    # Format: HMAC_VALUE INPUT_FILE_PATH
+    parts = expected_line.split()
+    if not parts:
+        raise ValueError(f"Empty HMAC verification file: {args.verify}")
+
+    # Take first non-empty part as HMAC
+    expected_hmac = parts[0].strip()
+    if len(expected_hmac) != 64:
+        # Also try to find 64-char hex string in the line
+        import re
+        hex_pattern = r'([0-9a-fA-F]{64})'
+        matches = re.findall(hex_pattern, expected_line)
+        if matches:
+            expected_hmac = matches[0]
+        else:
+            raise ValueError(
+                f"Invalid HMAC format in verification file. Expected 64 hex chars, got {len(expected_hmac)}")
+
+    # Compute HMAC for input file
+    computed_hmac = hmac.compute_file(args.input)
+
+    # Compare (case-insensitive)
+    if computed_hmac.lower() == expected_hmac.lower():
+        print("[OK] HMAC verification successful")
+        sys.exit(0)
+    else:
+        print("[ERROR] HMAC verification failed")
+        print(f"  Expected: {expected_hmac}")
+        print(f"  Computed: {computed_hmac}")
+        sys.exit(1)
 
 
 def handle_legacy_crypto(args):

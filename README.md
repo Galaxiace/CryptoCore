@@ -407,6 +407,43 @@ python3 -c "import hashlib; data = open('diff_test.txt', 'rb').read(); print(has
 echo "Our implementation:" && cat our_sha3.txt && echo "Python hashlib:" && cat python_sha3.txt && echo "===Difference===" && diff our_sha3.txt python_sha3.txt
 ```
 
+## Тесты hmac
+
+### Проверка hmac
+
+```bash
+
+# Создаем тестовый файл
+echo -n "Test message for HMAC verification" > test_message.txt
+
+# 1. Генерация HMAC
+python cryptocore.py dgst -algorithm sha256 --hmac --key 00112233445566778899aabbccddeeff -input test_message.txt
+
+# 2. Сохраним HMAC в файл
+python cryptocore.py dgst -algorithm sha256 --hmac --key 00112233445566778899aabbccddeeff -input test_message.txt > test.hmac
+
+# 3. Проверка HMAC (должен быть OK)
+python cryptocore.py dgst -algorithm sha256 --hmac --key 00112233445566778899aabbccddeeff -input test_message.txt --verify test.hmac
+echo "Exit code for success: $?"
+```
+
+### 4. Тест с неправильным ключом (должен быть ERROR)
+
+```bash
+
+python cryptocore.py dgst -algorithm sha256 --hmac --key ffffffffffffffffffffffffffffffff -input test_message.txt --verify test.hmac
+echo "Exit code for failure: $?"
+```
+
+### 5. Тест с измененным файлом
+
+```bash
+
+echo "Modified" >> test_message.txt
+python cryptocore.py dgst -algorithm sha256 --hmac --key 00112233445566778899aabbccddeeff -input test_message.txt --verify test.hmac
+echo "Exit code for tampered file: $?"
+```
+
 # Возможности
 ### 1) Шифрование AES-128 в различных режимах:
 
@@ -490,7 +527,12 @@ cryptocore/
     │   │
     │   ├── hash/
     │   │   ├── __init__.py
+    │   │   ├── sha3_256.py
     │   │   └── sha256.py
+    │   │
+    │   ├── mac/
+    │   │   ├── __init__.py
+    │   │   └── hmac.py
     │   │
     │   ├── utils/           # Вспомогательные утилиты
     │   │   ├── __init__.py
@@ -510,6 +552,7 @@ cryptocore/
     │   ├── test_csprng.py   # Тесты RNG и статистических свойств
     │   ├── test_hash.py
     │   └── test_integration.py # Интеграционные тесты
+    │   └── test_sha3_256.py
     ├── cryptocore.py        # ГЛАВНЫЙ CLI ИНТЕРФЕЙС
     ├── setup.py             # Конфигурация пакета
     ├── README.md
