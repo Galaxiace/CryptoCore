@@ -444,6 +444,72 @@ python cryptocore.py dgst -algorithm sha256 --hmac --key 00112233445566778899aab
 echo "Exit code for tampered file: $?"
 ```
 
+## Тесты GCM/AEAD
+
+### Базовая функциональность GCM
+
+```bash
+
+echo "Testing GCM basic encryption/decryption..."
+rm -f test.txt
+echo "test" > test.txt
+python cryptocore.py -algorithm aes -mode gcm -encrypt -key 00000000000000000000000000000000 -input test.txt -output test.gcm
+python cryptocore.py -algorithm aes -mode gcm -decrypt -key 00000000000000000000000000000000 -input test.gcm -output test_dec.txt
+diff test.txt test_dec.txt && echo "   ✅ PASS" || echo "   ❌ FAIL"
+```
+
+### GCM with AAD
+
+```bash
+
+echo "Testing GCM with AAD..."
+rm -f test.txt
+echo "test" > test.txt
+python cryptocore.py -algorithm aes -mode gcm -encrypt -key 00000000000000000000000000000000 -input test.txt -output test_aad.gcm -aad 6d795f6161645f64617461
+python cryptocore.py -algorithm aes -mode gcm -decrypt -key 00000000000000000000000000000000 -input test_aad.gcm -output test_aad_dec.txt -aad 6d795f6161645f64617461
+diff test.txt test_aad_dec.txt && echo "   ✅ PASS" || echo "   ❌ FAIL"
+```
+
+### Катастрофический отказ аутентификации
+
+```bash
+
+echo "Testing GCM authentication failure..."
+python cryptocore.py -algorithm aes -mode gcm -decrypt -key 00000000000000000000000000000000 -input test_aad.gcm -output should_not_exist.txt -aad 7726f6e675f616164 2>&1 >/dev/null
+[ -f should_not_exist.txt ] && echo "   ❌ FAIL (file was created)" || echo "   ✅ PASS (no file on auth failure)"
+```
+
+### Уникальность Nonce
+
+```bash
+
+echo "Testing nonce uniqueness..."
+rm -f test.txt
+echo "test" > test.txt
+python cryptocore.py -algorithm aes -mode gcm -encrypt -key 00000000000000000000000000000000 -input test.txt -output test1.gcm
+python cryptocore.py -algorithm aes -mode gcm -encrypt -key 00000000000000000000000000000000 -input test.txt -output test2.gcm
+python3 -c "
+import sys
+with open('test1.gcm', 'rb') as f1, open('test2.gcm', 'rb') as f2:
+    if f1.read(12) != f2.read(12):
+        print('   ✅ PASS (nonces are unique)')
+    else:
+        print('   ❌ FAIL (nonces are identical)')
+"
+```
+
+### Пустой AAD
+
+```bash
+
+echo "Testing empty AAD..."
+rm -f test.txt
+echo "" > test.txt
+python cryptocore.py -algorithm aes -mode gcm -encrypt -key 00000000000000000000000000000000 -input test.txt -output test_empty.gcm -aad ""
+python cryptocore.py -algorithm aes -mode gcm -decrypt -key 00000000000000000000000000000000 -input test_empty.gcm -output test_empty_dec.txt -aad ""
+diff test.txt test_empty_dec.txt && echo "   ✅ PASS" || echo "   ❌ FAIL"
+```
+
 # Возможности
 ### 1) Шифрование AES-128 в различных режимах:
 

@@ -64,3 +64,30 @@ def is_weak_key(key_hex: str) -> bool:
 
     except:
         return False
+
+
+def validate_hex_key_flexible(hex_str, name="Value"):
+    """
+    Flexible validation for hex strings (for GCM nonce, AAD, etc.)
+    Doesn't enforce strict length requirements
+    """
+    if not hex_str:
+        raise ValueError(f"{name} cannot be empty")
+
+    try:
+        return bytes.fromhex(hex_str)
+    except ValueError:
+        raise ValueError(f"Invalid hex {name.lower()}: must be hexadecimal characters")
+
+
+def validate_gcm_nonce(nonce_hex):
+    """
+    Validate GCM nonce (12 bytes = 24 hex characters recommended)
+    """
+    try:
+        nonce_bytes = bytes.fromhex(nonce_hex)
+        if len(nonce_hex) != 24:
+            print(f"Warning: GCM typically uses 12-byte nonce (24 hex chars), got {len(nonce_hex)}")
+        return nonce_bytes
+    except ValueError:
+        raise ValueError("Nonce must be a valid hexadecimal string")

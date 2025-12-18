@@ -151,6 +151,14 @@ def handle_hmac_verification(args, hmac):
 
 def handle_legacy_crypto(args):
     """Handle legacy crypto commands (without 'crypto' subcommand)"""
+    # Parse AAD if provided
+    aad_bytes = b""
+    if hasattr(args, 'aad') and args.aad:
+        try:
+            aad_bytes = bytes.fromhex(args.aad)
+        except ValueError:
+            raise ValueError("AAD must be a valid hexadecimal string")
+
     if args.encrypt and not args.key:
         # Генерируем случайный ключ
         key_bytes = generate_random_bytes(16)
@@ -161,11 +169,24 @@ def handle_legacy_crypto(args):
         key_bytes = validate_hex_key(args.key)
 
     if args.encrypt:
-        encrypt_file_aes(args.input, args.output, key_bytes, args.mode)
+        encrypt_file_aes(args.input, args.output, key_bytes, args.mode, aad_bytes)
         print(f"Encryption successful. Output: {args.output}")
     else:
-        decrypt_file_aes(args.input, args.output, key_bytes, args.mode, args.iv)
-        print(f"Decryption successful. Output: {args.output}")
+        # For GCM, handle authentication failures specially
+        if args.mode == 'gcm' or args.mode == 'encrypt-then-mac':
+            try:
+                decrypt_file_aes(args.input, args.output, key_bytes, args.mode, args.iv, aad_bytes)
+                print(f"[OK] Decryption completed successfully")
+            except Exception as e:
+                if "Authentication failed" in str(e):
+                    print(f"[ERROR] {str(e)}")
+                    print("Exit code: 1")
+                    sys.exit(1)
+                else:
+                    raise
+        else:
+            decrypt_file_aes(args.input, args.output, key_bytes, args.mode, args.iv, aad_bytes)
+            print(f"Decryption successful. Output: {args.output}")
 
 
 def main():
@@ -190,9 +211,9 @@ def main():
         else:
             print("Error: No command specified. Use 'crypto' for encryption/decryption or 'dgst' for hashing.")
             print("Examples:")
-            print("  cryptocore crypto -algorithm aes -mode cbc -encrypt -input file.txt")
+            print("  cryptocore crypto -algorithm aes -mode gcm -encrypt -input file.txt -aad aabbcc")
             print("  cryptocore dgst -algorithm sha256 -input file.txt")
-            print("  cryptocore -algorithm aes -mode cbc -encrypt -input file.txt (legacy)")
+            print("  cryptocore -algorithm aes -mode gcm -encrypt -input file.txt -aad aabbcc (legacy)")
             sys.exit(1)
 
     except Exception as e:

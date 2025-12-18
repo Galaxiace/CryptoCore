@@ -23,7 +23,7 @@ def create_parser():
     crypto_parser.add_argument('-algorithm', required=True, choices=['aes'],
                                help='Cipher algorithm')
     crypto_parser.add_argument('-mode', required=True,
-                               choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr'],
+                               choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr', 'gcm', 'encrypt-then-mac'],
                                help='Mode of operation')
     crypto_parser.add_argument('-key',
                                help='Encryption key as 32-character hexadecimal string (optional for encryption)')
@@ -32,7 +32,11 @@ def create_parser():
     crypto_parser.add_argument('-output',
                                help='Output file path (optional)')
     crypto_parser.add_argument('-iv',
-                               help='Initialization Vector as 32-character hexadecimal string (for decryption)')
+                               help='Initialization Vector/Nonce as hex string')
+    crypto_parser.add_argument('-aad',
+                               help='Associated Authenticated Data as hex string (for GCM/EAAD modes)')
+    crypto_parser.add_argument('--nonce',
+                               help='Nonce for GCM mode (alias for -iv)')
 
     # Mutually exclusive group for encrypt/decrypt
     group = crypto_parser.add_mutually_exclusive_group(required=True)
@@ -70,7 +74,7 @@ def create_legacy_parser():
     parser.add_argument('-algorithm', required=True, choices=['aes'],
                         help='Cipher algorithm')
     parser.add_argument('-mode', required=True,
-                        choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr'],
+                        choices=['ecb', 'cbc', 'cfb', 'ofb', 'ctr', 'gcm', 'encrypt-then-mac'],
                         help='Mode of operation')
     parser.add_argument('-key',
                         help='Encryption key as 32-character hexadecimal string (optional for encryption)')
@@ -79,7 +83,9 @@ def create_legacy_parser():
     parser.add_argument('-output',
                         help='Output file path (optional)')
     parser.add_argument('-iv',
-                        help='Initialization Vector as 32-character hexadecimal string (for decryption)')
+                        help='Initialization Vector/Nonce as hex string')
+    parser.add_argument('-aad',
+                        help='Associated Authenticated Data as hex string (for GCM/EAAD modes)')
 
     # Mutually exclusive group for encrypt/decrypt
     group = parser.add_mutually_exclusive_group(required=True)
@@ -91,6 +97,10 @@ def create_legacy_parser():
 
 def validate_args(args):
     """Validate CLI arguments"""
+    # Handle --nonce alias for -iv
+    if hasattr(args, 'nonce') and args.nonce and not args.iv:
+        args.iv = args.nonce
+
     # Определяем тип команды по наличию атрибута 'command'
     if not hasattr(args, 'command') or args.command == 'crypto':
         # Legacy format or crypto command
@@ -106,22 +116,75 @@ def validate_args(args):
                 if is_weak_key(args.key):
                     print(f"Warning: The provided key may be weak")
 
-            # Validate IV if provided
+            # Validate IV/Nonce if provided
             if args.iv:
-                validate_hex_key(args.iv, 32, "IV")
+                # Для GCM используем специальную логику, так как nonce 12 байт (24 hex символа)
+                if args.mode == 'gcm':
+                    # GCM использует 12-байтный nonce (24 hex символа)
+                    # Но ваша функция validate_hex_key требует 32 символа для IV
+                    # Поэтому для GCM делаем отдельную проверку
+                    try:
+                        nonce_bytes = bytes.fromhex(args.iv)
+                        if len(args.iv) != 24:
+                            # Для GCM можно принять разную длину, но выведем предупреждение
+                            print(f"Warning: GCM typically uses 12-byte nonce (24 hex chars), got {len(args.iv)}")
+                            if len(args.iv) == 32:
+                                print("Info: 32 hex chars detected - treating as 16-byte IV (not standard for GCM)")
+                    except ValueError:
+                        raise ValueError("IV/Nonce must be a valid hexadecimal string")
+                else:
+                    # Для других режимов используем стандартную валидацию (32 hex символа)
+                    validate_hex_key(args.iv, 32, "IV")
 
-            # Validate mode-specific requirements
-            if args.mode != 'ecb' and args.decrypt and not args.iv:
-                # For non-ECB decryption without --iv, we'll read IV from file
-                # This is allowed, so no validation error here
-                pass
+            # Validate AAD if provided
+            if args.aad:
+                try:
+                    aad_bytes = bytes.fromhex(args.aad)
+                except ValueError:
+                    raise ValueError("AAD must be a valid hexadecimal string")
+
+            # GCM-specific validations
+            if args.mode == 'gcm':
+                # For GCM encryption without --iv, we'll generate random nonce
+                if args.encrypt and args.iv:
+                    print("Info: Using provided nonce for GCM encryption")
+                elif args.encrypt and not args.iv:
+                    print("Info: Generating random 12-byte nonce for GCM encryption")
+
+                # For GCM decryption, either --iv must be provided or nonce must be in file
+                if args.decrypt and not args.iv:
+                    print("Info: No nonce provided via --iv, expecting nonce in input file")
+
+                # Для совместимости с текущей валидацией, если указан 32-символьный IV,
+                # преобразуем его в 24-символьный nonce (берем первые 24 символа)
+                if args.iv and len(args.iv) == 32:
+                    print("Info: Converting 32-char IV to 24-char nonce for GCM")
+                    args.iv = args.iv[:24]
+
+            # Encrypt-then-MAC specific validations
+            if args.mode == 'encrypt-then-mac':
+                # Для Encrypt-then-MAC используем стандартную валидацию IV (32 символа)
+                if args.iv:
+                    validate_hex_key(args.iv, 32, "IV")
+                print("Info: Using Encrypt-then-MAC AEAD mode")
 
         # Set default output filename if not provided
         if not args.output:
             if args.encrypt:
-                args.output = args.input + '.enc'
+                # Для GCM используем другое расширение, чтобы отличать
+                if args.mode == 'gcm':
+                    args.output = args.input + '.gcm'
+                elif args.mode == 'encrypt-then-mac':
+                    args.output = args.input + '.etm'
+                else:
+                    args.output = args.input + '.enc'
             else:
-                if args.input.endswith('.enc'):
+                # Пытаемся угадать правильное расширение для дешифрования
+                if args.input.endswith('.gcm'):
+                    args.output = args.input[:-4]
+                elif args.input.endswith('.etm'):
+                    args.output = args.input[:-4]
+                elif args.input.endswith('.enc'):
                     args.output = args.input[:-4]
                 else:
                     args.output = args.input + '.dec'
