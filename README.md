@@ -627,64 +627,120 @@ CTR (Counter)
 # Структура проекта
 ```
 cryptocore/
-    ├── nist-sts/            # NIST-тесты
-    ├── src/                 # Исходный код
-    │   ├── crypto/          # ЯДРО КРИПТОГРАФИИ
-    │   │   ├── __init__.py
-    │   │   ├── aes_ecb.py   # Реализация AES-ECB + паддинг
-    │   │   ├── core.py      # Функции шифрования/дешифрования файлов
-    │   │   └── modes/       # Другие режимы
-    │   │       ├── __init__.py
-    │   │       ├── aead.py
-    │   │       ├── base_mode.py
-    │   │       ├── cbc.py   # cbc режим
-    │   │       ├── cfb.py   # cfb режим
-    │   │       ├── ofb.py   # ofb режим
-    │   │       ├── gcm.py
-    │   │       └── ctr.py   # ctr режим
-    │   │
-    │   ├── hash/
-    │   │   ├── __init__.py
-    │   │   ├── sha3_256.py
-    │   │   └── sha256.py
-    │   │
-    │   ├── kdf/
-    │   │   ├── __init__.py
-    │   │   ├── hkdf.py
-    │   │   └── pbkdf2.py
-    │   │
-    │   ├── mac/
-    │   │   ├── __init__.py
-    │   │   └── hmac.py
-    │   │
-    │   ├── utils/           # Вспомогательные утилиты
-    │   │   ├── __init__.py
-    │   │   ├── csprng.py        # Криптостойкий RNG
-    │   │   ├── validation.py    # Валидация ключей и файлов
-    │   │   └── logging_setup.py # Настройка логирования
-    │   │   
-    │   ├── file_io.py       # Чтение/запись файлов
-    │   ├── cli_parser.py    # Парсер аргументов CLI
-    │   └── __init__.py
-    │
-    ├── tests/               # Тесты
-    │   ├── __init__.py
-    │   ├── conftest.py      # Фикстуры pytest
-    │   ├── performance_test_pbkdf2.py
-    │   ├── test_aead.py
-    │   ├── test_aes_ecb.py  # Тесты AES-ECB
-    │   ├── test_cli.py      # Тесты CLI
-    │   ├── test_csprng.py   # Тесты RNG и статистических свойств
-    │   ├── test_gcm.py
-    │   ├── test_hash.py
-    │   ├── test_hkdf.py
-    │   ├── test_hmac.py
-    │   ├── test_integration.py # Интеграционные тесты
-    │   ├── test_pbkdf2.py
-    │   ├── test_pbkdf2_openssl.py
-    │   └── test_sha3_256.py
-    ├── cryptocore.py        # ГЛАВНЫЙ CLI ИНТЕРФЕЙС
-    ├── setup.py             # Конфигурация пакета
-    ├── README.md
-    └── requirements.txt     # Зависимости
+│
+├── docs/ # Документация проекта для разных категорий пользователей
+│   │
+│   ├── API.md # Техническая документация API библиотеки
+│   │
+│   ├── DEVELOPMENT.md # Руководство для разработчиков проекта
+│   │
+│   └── USERGUIDE.md # Руководство для конечных пользователей CLI
+│
+├── nist-sts/ # Тесты NIST STS
+│
+├── src/ # Исходный код
+│   │ 
+│   ├── crypto/ # Ядро криптографии
+│   │ │
+│   │ ├── init.py
+│   │ │
+│   │ ├── aes_ecb.py # Реализация AES-ECB + паддинг
+│   │ │
+│   │ ├── core.py # Основные функции шифрования/дешифрования
+│   │ │
+│   │ └── modes/ # Режимы работы AES
+│   │     │
+│   │     ├── init.py
+│   │     │
+│   │     ├── aead.py # Encrypt-then-MAC AEAD
+│   │     │
+│   │     ├── base_mode.py # Базовый класс режима
+│   │     │
+│   │     ├── cbc.py # CBC режим
+│   │     │
+│   │     ├── cfb.py # CFB режим
+│   │     │
+│   │     ├── ofb.py # OFB режим
+│   │     │
+│   │     ├── gcm.py # GCM режим
+│   │     │
+│   │     └── ctr.py # CTR режим
+│   │
+│   ├── hash/ # Хеш-функции
+│   │     │
+│   │     ├── init.py
+│   │     │
+│   │     ├── sha3_256.py # Реализация SHA-256 хеш-функции
+│   │     │
+│   │     └── sha256.py # Реализация SHA3-256 хеш-функции
+│   │
+│   ├── kdf/ # Функции получения ключей
+│   │     │
+│   │     ├── init.py
+│   │     │
+│   │     ├── hkdf.py # Реализация HKDF для иерархии ключей
+│   │     │
+│   │     └── pbkdf2.py # Реализация PBKDF2-HMAC-SHA256
+│   │
+│   ├── mac/ # Коды аутентификации
+│   │     │
+│   │     ├── init.py
+│   │     │
+│   │     └── hmac.py # Реализация HMAC-SHA256
+│   │
+│   ├── utils/ # Вспомогательные утилиты
+│   │     │
+│   │     ├── init.py
+│   │     │
+│   │     ├── csprng.py # Криптостойкий RNG
+│   │     │
+│   │     ├── validation.py # Валидация ключей и файлов
+│   │     │
+│   │     └── logging_setup.py # Настройка логирования
+│   │
+│   ├── file_io.py # Работа с файлами
+│   │
+│   ├── cli_parser.py # Парсер аргументов CLI
+│   │
+│   └── init.py
+│   
+├── tests/ # Тесты
+│   │
+│   ├── init.py
+│   │
+│   ├── conftest.py # Фикстуры pytest
+│   │
+│   ├── performance_test_pbkdf2.py # Тестирование производительности PBKDF2
+│   │
+│   ├── test_aead.py # Тесты Encrypt-then-MAC AEAD
+│   │
+│   ├── test_aes_ecb.py # Тесты AES-ECB
+│   │
+│   ├── test_cli.py # Тесты CLI
+│   │
+│   ├── test_csprng.py # Тесты RNG
+│   │
+│   ├── test_gcm.py # Тесты GCM режима
+│   │
+│   ├── test_hash.py # Тесты хеш-функций
+│   │
+│   ├── test_hkdf.py # Тесты HKDF
+│   │
+│   ├── test_hmac.py # Тесты HMAC
+│   │
+│   ├── test_integration.py # Интеграционные тесты
+│   │
+│   ├── test_pbkdf2.py # Тесты PBKDF2
+│   │
+│   ├── test_pbkdf2_openssl.py # Тесты совместимости PBKDF2 с OpenSSL
+│   │
+│   └── test_sha3_256.py # Тесты SHA3-256
+│
+├── cryptocore.py # Главный CLI интерфейс
+│
+├── setup.py # Конфигурация пакета
+│
+├── README.md # Основная документация проекта
+│
+└── requirements.txt # Зависимости
 ```
