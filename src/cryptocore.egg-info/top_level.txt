@@ -1,2 +1,5 @@
 crypto
+hash
+kdf
+mac
 utils

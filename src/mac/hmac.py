@@ -57,7 +57,7 @@ class HMAC:
             message: bytes to compute HMAC for
 
         Returns:
-            HMAC as hex string
+            HMAC as hex string (as required by Sprint 5)
         """
         if isinstance(message, str):
             message = message.encode('utf-8')
@@ -77,7 +77,7 @@ class HMAC:
         outer_hasher.update(opad)
         outer_hasher.update(inner_hash)
 
-        return outer_hasher.hexdigest()  # Возвращаем hex строку
+        return outer_hasher.hexdigest()  # Возвращаем hex строку (требование Sprint 5)
 
     def compute_file(self, file_path, chunk_size=8192):
         """
@@ -141,3 +141,39 @@ class HMAC:
         """
         computed_hmac = self.compute_file(file_path, chunk_size)
         return computed_hmac == hmac_to_check.lower()
+
+    def compute_bytes(self, message):
+        """
+        Compute HMAC and return as bytes (32 bytes for SHA-256).
+        Для использования в PBKDF2 и других случаях, где нужны байты.
+
+        Args:
+            message: bytes to compute HMAC for
+
+        Returns:
+            HMAC as bytes
+        """
+        if isinstance(message, str):
+            message = message.encode('utf-8')
+
+        # Create inner and outer pads
+        ipad = self._xor_bytes(self.key, b'\x36' * self.block_size)
+        opad = self._xor_bytes(self.key, b'\x5c' * self.block_size)
+
+        inner_hasher = self.hash_class()
+        inner_hasher.update(ipad)
+        inner_hasher.update(message)
+        inner_hash = inner_hasher.digest()
+
+        outer_hasher = self.hash_class()
+        outer_hasher.update(opad)
+        outer_hasher.update(inner_hash)
+
+        return outer_hasher.digest()  # Возвращаем байты
+
+    def hmac_sha256(self, message):
+        """
+        Alias for compute_bytes for compatibility with PBKDF2.
+        Returns bytes, not hex string.
+        """
+        return self.compute_bytes(message)

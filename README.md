@@ -510,6 +510,56 @@ python cryptocore.py -algorithm aes -mode gcm -decrypt -key 00000000000000000000
 diff test.txt test_empty_dec.txt && echo "   ✅ PASS" || echo "   ❌ FAIL"
 ```
 
+## PBKDF2 (Password-Based Key Derivation)
+
+### Базовая проверка работы PBKDF2
+
+```bash
+
+python cryptocore.py derive --password "MySecurePassword123!" --iterations 1000 # Генерация ключа с паролем и случайной солью
+
+python cryptocore.py derive --password "test" --salt 73616c74 --iterations 1000 --length 32 # Генерация ключа с указанной солью (hex формат)
+
+python cryptocore.py derive --password "database_key" --iterations 50000 --output secret.key # Сохранение ключа в файл
+```
+
+### Проверка детерминированности
+
+```bash
+
+# Дважды запустить с одинаковыми параметрами - результат должен совпадать
+python cryptocore.py derive --password "identical" --salt a1b2c3d4 --iterations 100 --length 16
+python cryptocore.py derive --password "identical" --salt a1b2c3d4 --iterations 100 --length 16
+```
+
+### Сравнение с Python hashlib
+
+```bash
+
+# Сравнение с Python reference implementation
+python3 -c "
+import hashlib
+result = hashlib.pbkdf2_hmac('sha256', b'test', b'salt', 1000, 32)
+print('Hashlib result:', result.hex())
+"
+
+python cryptocore.py derive --password "test" --salt 73616c74 --iterations 1000 --length 32
+```
+
+### Проверка HKDF через Python
+
+```bash
+
+python3 -c "
+from src.kdf.hkdf import derive_key
+k1 = derive_key(b'0'*32, 'test1', 16)
+k2 = derive_key(b'0'*32, 'test2', 16)
+print('Key1:', k1.hex()[:16], '...')
+print('Key2:', k2.hex()[:16], '...')
+print('Different:', 'YES' if k1 != k2 else 'NO')
+"
+```
+
 # Возможности
 ### 1) Шифрование AES-128 в различных режимах:
 
@@ -585,16 +635,23 @@ cryptocore/
     │   │   ├── core.py      # Функции шифрования/дешифрования файлов
     │   │   └── modes/       # Другие режимы
     │   │       ├── __init__.py
+    │   │       ├── aead.py
     │   │       ├── base_mode.py
     │   │       ├── cbc.py   # cbc режим
     │   │       ├── cfb.py   # cfb режим
     │   │       ├── ofb.py   # ofb режим
+    │   │       ├── gcm.py
     │   │       └── ctr.py   # ctr режим
     │   │
     │   ├── hash/
     │   │   ├── __init__.py
     │   │   ├── sha3_256.py
     │   │   └── sha256.py
+    │   │
+    │   ├── kdf/
+    │   │   ├── __init__.py
+    │   │   ├── hkdf.py
+    │   │   └── pbkdf2.py
     │   │
     │   ├── mac/
     │   │   ├── __init__.py
@@ -613,11 +670,18 @@ cryptocore/
     ├── tests/               # Тесты
     │   ├── __init__.py
     │   ├── conftest.py      # Фикстуры pytest
+    │   ├── performance_test_pbkdf2.py
+    │   ├── test_aead.py
     │   ├── test_aes_ecb.py  # Тесты AES-ECB
     │   ├── test_cli.py      # Тесты CLI
     │   ├── test_csprng.py   # Тесты RNG и статистических свойств
+    │   ├── test_gcm.py
     │   ├── test_hash.py
-    │   └── test_integration.py # Интеграционные тесты
+    │   ├── test_hkdf.py
+    │   ├── test_hmac.py
+    │   ├── test_integration.py # Интеграционные тесты
+    │   ├── test_pbkdf2.py
+    │   ├── test_pbkdf2_openssl.py
     │   └── test_sha3_256.py
     ├── cryptocore.py        # ГЛАВНЫЙ CLI ИНТЕРФЕЙС
     ├── setup.py             # Конфигурация пакета

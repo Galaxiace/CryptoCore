@@ -64,6 +64,24 @@ def create_parser():
     hmac_group.add_argument('--cmac', action='store_true',
                             help='Use AES-CMAC instead of HMAC')
 
+    # Derive command (NEW - Sprint 7)
+    derive_parser = subparsers.add_parser('derive', help='Key derivation from passwords')
+    derive_parser.add_argument('--password', required=True,
+                               help='Password string (use quotes for special characters)')
+    derive_parser.add_argument('--salt',
+                               help='Salt as hexadecimal string (if not provided, random salt will be generated)')
+    derive_parser.add_argument('--iterations', type=int, default=100000,
+                               help='Number of iterations (default: 100000)')
+    derive_parser.add_argument('--length', type=int, default=32,
+                               help='Key length in bytes (default: 32)')
+    derive_parser.add_argument('--algorithm', default='pbkdf2',
+                               choices=['pbkdf2'],
+                               help='KDF algorithm (currently only pbkdf2)')
+    derive_parser.add_argument('--output',
+                               help='Output file to write derived key (optional)')
+    derive_parser.add_argument('--show-salt', action='store_true',
+                               help='Print generated salt (when no salt provided)')
+
     return parser
 
 
@@ -218,5 +236,31 @@ def validate_args(args):
         # Check for conflicting options
         if args.verify and args.output:
             print("Warning: --verify and --output both specified, --verify takes precedence")
+
+    elif args.command == 'derive':
+        # Validate iterations
+        if args.iterations < 1:
+            raise ValueError("Iterations must be at least 1")
+        if args.iterations > 1000000:
+            print(f"Warning: High iteration count ({args.iterations}) may be slow")
+
+        # Validate key length
+        if args.length < 1 or args.length > 1024:
+            raise ValueError("Key length must be between 1 and 1024 bytes")
+
+        # Validate algorithm
+        if args.algorithm != 'pbkdf2':
+            raise ValueError("Currently only 'pbkdf2' algorithm is supported")
+
+        # Validate salt if provided
+        if args.salt:
+            try:
+                # Try to parse as hex first
+                salt_bytes = bytes.fromhex(args.salt)
+                if len(salt_bytes) < 8:
+                    print(f"Warning: Salt is short ({len(salt_bytes)} bytes). Minimum 8 bytes recommended.")
+            except ValueError:
+                # If not hex, it's treated as raw string - that's OK
+                pass
 
     return args

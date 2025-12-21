@@ -189,6 +189,59 @@ def handle_legacy_crypto(args):
             print(f"Decryption successful. Output: {args.output}")
 
 
+def handle_derive_command(args):
+    """Handle the derive subcommand for key derivation (NEW - Sprint 7)"""
+    from src.kdf.pbkdf2 import pbkdf2_hmac_sha256
+
+    # Get password
+    password = args.password
+
+    # Get or generate salt
+    if args.salt:
+        # Try to parse as hex, otherwise use as string
+        try:
+            salt = bytes.fromhex(args.salt)
+        except ValueError:
+            salt = args.salt.encode('utf-8')
+    else:
+        # Generate random 16-byte salt
+        salt = generate_random_bytes(16)
+        if args.show_salt:
+            print(f"Generated salt: {salt.hex()}")
+
+    # Derive key using PBKDF2
+    if args.algorithm == 'pbkdf2':
+        derived_key = pbkdf2_hmac_sha256(
+            password,
+            salt,
+            args.iterations,
+            args.length
+        )
+    else:
+        raise ValueError(f"Unsupported algorithm: {args.algorithm}")
+
+    # Format output: KEY_HEX SALT_HEX
+    key_hex = derived_key.hex()
+    salt_hex = salt.hex() if isinstance(salt, bytes) else salt.encode('utf-8').hex()
+    output_line = f"{key_hex} {salt_hex}\n"
+
+    # Output to file or stdout
+    if args.output:
+        # Write raw bytes to file
+        from src.file_io import write_file
+        write_file(args.output, derived_key)
+        print(f"Key written to: {args.output}")
+        # Also print to stdout
+        print(output_line, end='')
+    else:
+        print(output_line, end='')
+
+    # Clear password from memory (as much as possible in Python)
+    password = None
+
+    return derived_key
+
+
 def main():
     logger = setup_logger()
 
@@ -208,12 +261,20 @@ def main():
         elif args.command == 'dgst':
             # New hash command
             handle_hash_command(args)
+        elif args.command == 'derive':
+            # New derive command (Sprint 7)
+            handle_derive_command(args)
         else:
-            print("Error: No command specified. Use 'crypto' for encryption/decryption or 'dgst' for hashing.")
-            print("Examples:")
-            print("  cryptocore crypto -algorithm aes -mode gcm -encrypt -input file.txt -aad aabbcc")
+            print("Error: No command specified.")
+            print("Available commands:")
+            print("  crypto   - Encryption/decryption operations")
+            print("  dgst     - Compute hashes and HMAC")
+            print("  derive   - Derive keys from passwords (Sprint 7)")
+            print("\nExamples:")
+            print("  cryptocore crypto -algorithm aes -mode gcm -encrypt -input file.txt")
             print("  cryptocore dgst -algorithm sha256 -input file.txt")
-            print("  cryptocore -algorithm aes -mode gcm -encrypt -input file.txt -aad aabbcc (legacy)")
+            print("  cryptocore derive --password \"mypass\" --salt 1234abcd")
+            print("  cryptocore -algorithm aes -mode gcm -encrypt -input file.txt (legacy)")
             sys.exit(1)
 
     except Exception as e:
